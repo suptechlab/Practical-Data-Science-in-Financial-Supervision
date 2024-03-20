@@ -1,0 +1,128 @@
+#Keyword Extraction from text
+# We will analyze 3 different NLP models for keyword extraction
+# The text we will be analyzing is a article on the BIS website on insurance supevision
+
+text = ("""Second Asia-Pacific high-level meeting on insurance supervision.
+Senior insurance supervisors from Asia-Pacific, the fastest growing insurance market in the world,
+met to discuss three key issues - technology, climate change and proportionate regulation.
+This was the second meeting of its kind, bringing together over 50 senior officials from insurance authorities and companies.
+The meeting was hosted by the Monetary Authority of Macao, and was jointly organized by the Asian Forum of Insurance Regulators (AFIR),
+the Financial Stability Institute (FSI) of the Bank for International Settlements (BIS) and the International Association of Insurance Supervisors (IAIS).
+As the global frontrunner in embracing technological developments both in the provision of insurance services and the use of technology by insurance authorities themselves,
+the insurance industry in Asia-Pacific has the potential to revolutionize the insurance sector and the way supervision is conducted.
+In this regard, the meeting exchanged views on fintech sandboxes, technology used for supervision (suptech) and importantly, cyber security resilience frameworks.
+The devastating human and economic impact of climate change on increasingly urbanized populations in this region is clear.
+The time has come to go beyond raising awareness of risks arising from climate change. Supervisors in the region and indeed globally 
+are taking concrete actions to address climate change risks, in close partnership with the insurance industry.
+The meeting noted concrete regulatory and supervisory measures that have been taken in two major jurisdictions in tackling these critically important risks. 
+The meeting also discussed the different regulatory approaches in applying proportionate insurance solvency requirements.
+With the forthcoming finalization of the global Insurance Capital Standard (ICS) by the IAIS, 
+there could be further consideration in providing guidance on the proportionate application of such a standard.""")
+
+# 1. Firstly we will use YAKE, which uses a statistical features methodology
+import yake #Import the Package
+kw_extractor = yake.KeywordExtractor() #intialize the keyword extractor
+
+language = "en" #you can set the language of the text here. For example, for German use language=’de'
+max_ngram_size = 3 #The max n-gram size sets an upper limit on how many words a keyword can consist of
+deduplication_threshold = 0.9 #The de-duplication threshold limits duplicate words withing the differnt keywords
+#setting this to 0.1 will mean no duplicate words are allowed within different keywords, 0.9 means duplication is allowed
+numOfKeywords = 20 # Set an upper limit on the number of keywords to be extracted
+
+# Next we initialize the extractor with the above set variables/limitations
+custom_kw_extractor = yake.KeywordExtractor(lan=language, n=max_ngram_size, dedupLim=deduplication_threshold, top=numOfKeywords, features=None)
+keywords = custom_kw_extractor.extract_keywords(text) #get the keywords from the text
+for kw in keywords: #loop through and print the top 20
+	print(kw)
+
+#The keywords are ranked based on the models analysis of their importance. The lower the score the higher the ranking
+# As you can see many of the keywords have duplicate terms. We can increase the deduplication threshold to mitigate this
+# lets take an extreme approach and set it to 0.1
+deduplication_threshold = 0.1
+custom_kw_extractor = yake.KeywordExtractor(lan=language, n=max_ngram_size, dedupLim=deduplication_threshold, top=numOfKeywords, features=None)
+keywords = custom_kw_extractor.extract_keywords(text) #get the keywords from the text
+for kw in keywords: #loop through and print the top 20
+	print(kw)
+
+# As you can observe only 5 keywords are now extracted and the confidence scores for them are also much higher
+# We can take a half-way approach and set deduplication to 0.5
+deduplication_threshold = 0.5
+custom_kw_extractor = yake.KeywordExtractor(lan=language, n=max_ngram_size, dedupLim=deduplication_threshold, top=numOfKeywords, features=None)
+keywords = custom_kw_extractor.extract_keywords(text) #get the keywords from the text
+for kw in keywords: #loop through and print the top 20
+	print(kw)
+# This limits to some extent the duplication though some key terms are missed.
+# The deduplication threshold is thus a hyperparameter which has to be selected based on the users requirements
+
+# We can also change the max-ngram size. It should be noted that Yake is not a generative process
+# so increasing the n-gram size leads to something more akin to a key phrase search
+max_ngram_size = 6
+deduplication_threshold = 0.9
+custom_kw_extractor = yake.KeywordExtractor(lan=language, n=max_ngram_size, dedupLim=deduplication_threshold, top=numOfKeywords, features=None)
+keywords = custom_kw_extractor.extract_keywords(text) #get the keywords from the text
+for kw in keywords: #loop through and print the top 20
+	print(kw)
+
+# 2. KeyBERT
+# Next we will use the BERT LLM, which has been fine-tuned for keyword extraction
+# The advantage of a LLM like BERT is that the model can learn the syntatic and semantic
+# importance of words in regards to the whole text, whereas YAKE use a statistical apporach
+# focused on word and term frequencies
+
+from keybert import KeyBERT #import the package
+kw_model = KeyBERT() #intialize the extractor
+keywords = kw_model.extract_keywords(text,keyphrase_ngram_range=(1, 3),stop_words='english',highlight=False,top_n=20)
+# We can also set a max ngram range, language and number of top words to be extracted with KeyBERT
+# However one limitation it has over YAKE is that there is no deduplication threshold to limit the number of
+# duplicate words within the ky words. As this uses LLM the runtime is also longer
+for kw in keywords: #loop through and print the top 20
+	print(kw)
+
+#As you may observe the results are comparable to YAKE, there is not a consensus on which method is superior
+#especially for a simple non-generative task such as keyword extraction. The main advantage of LLM is more
+#pronounced for more complicated NLP tasks such as summarization and language translation, which we will be
+#covering in the next module
+
+#3. Next we will cover Named Entity Recognition (NER) using the Spacy library
+#NER goes beyond identifying just keywords but is able to label entities embedded in text
+#as Organizations, People, Geographical location etc.
+#The full list of the different entity types Spacy is able to label are in the below table:
+#ADD in table with descriptions
+
+import spacy #import the package
+from spacy import displacy #import the display package
+NER = spacy.load("en_core_web_sm") #load the training data
+output = NER(text) #run the model on the text and store the outputs
+
+for word in output.ents: #iterate through the entities stored in he output
+	print(word.text,word.label_) #print the word and corresponding label
+
+# As you can see Spcay is good at identifying organizations and locations mentioned within text
+# if we want to get the meaning behind the labels, e.g. LOC we can use:
+print(spacy.explain("GPE"))
+# or refer to the attached table. We can also visualize the entities directly in the text
+displacy.render(text,style="ent",jupyter=True)
+
+# It should also be noted that spacy identifies suptech incorrectly as an organization
+# This is because it has never been trained on data specific to suptech and also does not
+# have an appropriate label for it. This is one of the limitations of Spacy and in fact
+# any supervised classification model, even if it is a LLM. In a supervised model
+# the classes are pre-defined before the model is trained and thus it is not able to
+# discover new classes. We would need human annotated data, and a very large amount to create a training set
+# to train Spacy on a particular domain and to define new classes
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
